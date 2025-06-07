@@ -1,0 +1,41 @@
+# See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
+
+# This stage is used when running from VS in fast mode (Default for Debug configuration)
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+USER $APP_UID
+WORKDIR /app
+EXPOSE 8080
+EXPOSE 8081
+
+# This stage is used to build the service project
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+ARG BUILD_CONFIGURATION=Release
+WORKDIR /src
+COPY ["TODO/TODO.csproj", "TODO/"]
+RUN dotnet restore "./TODO/TODO.csproj"
+COPY . .
+WORKDIR "/src/TODO"
+RUN dotnet build "./TODO.csproj" -c $BUILD_CONFIGURATION -o /app/build
+
+# This stage is used to publish the service project to be copied to the final stage
+FROM build AS publish
+ARG BUILD_CONFIGURATION=Release
+RUN dotnet publish "./TODO.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+
+# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+
+# ? FIX: Pre-install vsdbg to avoid Visual Studio debugger download issues behind proxy
+USER root
+RUN apt-get update && \
+    apt-get install -y curl unzip && \
+    curl -sSL https://aka.ms/getvsdbgsh -o getvsdbg.sh && \
+    chmod +x getvsdbg.sh && \
+    ./getvsdbg.sh -v latest -l /vsdbg && \
+    rm -rf getvsdbg.sh
+
+USER $APP_UID
+
+ENTRYPOINT ["dotnet", "TODO.dll"]

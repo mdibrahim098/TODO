@@ -10,7 +10,9 @@ var app = builder.Build();
 
 // Configure the HTTP request pipeline. -- used method  
 
-app.MapGet("/todoitems", async (TodoDb db) =>
+app.MapGet("/todoitems",
+    
+    async (TodoDb db) =>
             await db.TodoItems.ToListAsync());
 
 app.MapGet("/todoitems/{id}", async (int id, TodoDb db) =>
